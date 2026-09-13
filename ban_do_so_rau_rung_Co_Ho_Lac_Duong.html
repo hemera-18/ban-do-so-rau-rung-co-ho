@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bản đồ số rau rừng Cơ Ho - Lạc Dương</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root {
+  --green:#244b35; --green2:#3d6b4c; --cream:#f6f1e5; --paper:#fffdf7;
+  --ink:#243128; --muted:#6c756e; --line:#dfe4dc; --accent:#c98a42;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--cream);color:var(--ink);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+header{padding:24px 28px;background:linear-gradient(135deg,#1f3f2d,#446b50);color:white}
+header h1{margin:0 0 6px;font-family:Georgia,serif;font-size:30px}
+header p{margin:0;opacity:.86}
+.app{display:grid;grid-template-columns:360px 1fr;height:calc(100vh - 105px);min-height:620px}
+.sidebar{background:var(--paper);border-right:1px solid var(--line);overflow:auto;padding:18px}
+.mapwrap{position:relative;min-height:500px}
+#map{height:100%;width:100%}
+.controls{display:grid;gap:10px;margin-bottom:15px}
+input,select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:white;color:var(--ink);font-size:14px}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:12px 0 16px}
+.stat{padding:12px;border:1px solid var(--line);border-radius:12px;background:#fbfaf5}
+.stat b{display:block;font-size:20px;color:var(--green)}
+.stat span{font-size:12px;color:var(--muted)}
+.card{padding:13px;margin:9px 0;border:1px solid var(--line);border-radius:12px;background:white;cursor:pointer;transition:.15s}
+.card:hover{transform:translateY(-1px);box-shadow:0 4px 14px #244b3514}
+.card h3{margin:0 0 4px;font-size:16px}
+.local{color:var(--green2);font-weight:650;font-size:13px}
+.sci{font-family:Georgia,serif;font-style:italic;font-size:12px;color:var(--muted);margin-top:4px}
+.meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.tag{font-size:11px;padding:4px 7px;border-radius:999px;background:#edf3ed;color:var(--green)}
+.notice{font-size:12px;line-height:1.5;padding:11px;border-left:4px solid var(--accent);background:#fff8eb;margin:10px 0 14px}
+.legend{position:absolute;z-index:1000;right:14px;bottom:14px;background:white;padding:10px 12px;border-radius:10px;box-shadow:0 2px 12px #0002;font-size:12px}
+.leaflet-popup-content-wrapper{border-radius:12px}
+.popup h3{margin:0 0 5px;color:var(--green)}
+.popup .latin{font-family:Georgia,serif;font-style:italic;color:#68736b}
+@media(max-width:900px){.app{grid-template-columns:1fr;height:auto}.sidebar{max-height:58vh;border-right:0;border-bottom:1px solid var(--line)}.mapwrap{height:60vh}}
+</style>
+</head>
+<body>
+<header>
+  <h1>🌿 Bản đồ số rau rừng của người Cơ Ho</h1>
+  <p>Xã Lạc Dương • Phiên bản dữ liệu nền 17 loài</p>
+</header>
+<div class="app">
+  <aside class="sidebar">
+    <div class="controls">
+      <input id="search" placeholder="🔎 Tìm tên Việt, Cơ Ho, khoa học...">
+      <select id="family"><option value="">Tất cả họ thực vật</option></select>
+      <select id="part"><option value="">Tất cả bộ phận sử dụng</option></select>
+    </div>
+    <div class="stats">
+      <div class="stat"><b id="count">17</b><span>loài trong dữ liệu</span></div>
+      <div class="stat"><b id="families">16</b><span>họ thực vật</span></div>
+    </div>
+    <div id="list"></div>
+  </aside>
+  <main class="mapwrap">
+    <div id="map"></div>
+  </main>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const species = [
+  {
+    "id": 1,
+    "name": "Cần nước",
+    "local": "Biap Sơp",
+    "scientific": "Oenanthe javanica (Blume) DC.",
+    "family": "Apiaceae",
+    "part": "Ngọn non",
+    "habitat": "Nơi có nước hoặc ẩm ướt; dọc bờ suối, ao hồ, đất trũng và nơi có nguồn nước chảy qua."
+  },
+  {
+    "id": 2,
+    "name": "Xuân tiết",
+    "local": "Ta brach",
+    "scientific": "Justicia adhatoda L.",
+    "family": "Acanthaceae",
+    "part": "Lá non",
+    "habitat": "Rừng thứ sinh, rừng ẩm, ven suối hoặc dưới tán rừng; thường tập trung thành bụi."
+  },
+  {
+    "id": 3,
+    "name": "Mua chua",
+    "local": "Nha Srat",
+    "scientific": "Melastomataceae",
+    "family": "Melastomataceae",
+    "part": "Lá non",
+    "habitat": "Nơi ẩm ướt, rừng nhiệt đới, đầm lầy, ven suối và dọc đường; ưa ánh sáng đầy đủ hoặc bán râm."
+  },
+  {
+    "id": 4,
+    "name": "Thu hải đường",
+    "local": "Tinh ti",
+    "scientific": "Begonia",
+    "family": "Begoniaceae",
+    "part": "Lá, cuống",
+    "habitat": "Trong dữ liệu hiện tại chưa ghi rõ sinh cảnh riêng của loài; tài liệu mô tả đặc điểm và cách sử dụng."
+  },
+  {
+    "id": 5,
+    "name": "Rau tai voi",
+    "local": "Tôr wẻh",
+    "scientific": "Chirita colaniae Pellegr.",
+    "family": "Gesneriaceae",
+    "part": "Lá non",
+    "habitat": "Đất ẩm, ven suối, dưới tán rừng hoặc khu vực rẫy có bóng mát; phát triển mạnh vào mùa mưa."
+  },
+  {
+    "id": 6,
+    "name": "Lổ bình",
+    "local": "Kdơl vôp",
+    "scientific": "Lobelia alsinoides",
+    "family": "Lobeliaceae",
+    "part": "Ngọn non",
+    "habitat": "Đất ẩm, dọc khe suối hoặc giữa đầm lầy."
+  },
+  {
+    "id": 7,
+    "name": "Tiêu rừng",
+    "local": "Li Lu",
+    "scientific": "Litsea cubeba (Lour.) Pers.",
+    "family": "Lauraceae",
+    "part": "Quả, lá",
+    "habitat": "Rừng lá rộng ẩm, dưới tán cây lớn, bờ suối, khe núi; ưa ẩm và ưa bóng."
+  },
+  {
+    "id": 8,
+    "name": "Rau bầu đất",
+    "local": "Nha Cơ Đêr Lốh",
+    "scientific": "Gynura procumbens",
+    "family": "Asteraceae",
+    "part": "Lá, ngọn",
+    "habitat": "Ven rẫy, gần nhà, dưới tán rừng thưa và nơi đất ẩm; mọc tự nhiên hoặc bán tự nhiên."
+  },
+  {
+    "id": 9,
+    "name": "Rau mác thon",
+    "local": "Rau Chré",
+    "scientific": "Pontederia plantaginea Roxb.",
+    "family": "Pontederiaceae",
+    "part": "Lá và thân non",
+    "habitat": "Vùng đất ẩm, ven suối, rừng thưa hoặc dưới tán cây lớn; vùng đất thấp, bóng râm hoặc đất phì nhiêu."
+  },
+  {
+    "id": 10,
+    "name": "Rau nghể răm",
+    "local": "Tao rang vrê",
+    "scientific": "Polygonum odoratum",
+    "family": "Polygonaceae",
+    "part": "Lá",
+    "habitat": "Nơi ẩm ướt như ven sông, suối, ruộng nước; có thể mọc dại."
+  },
+  {
+    "id": 11,
+    "name": "Hương bài (Xương quạt)",
+    "local": "Nha Chấu",
+    "scientific": "Dianella ensifolia DC",
+    "family": "Phormiaceae",
+    "part": "Đọt non, lá",
+    "habitat": "Đất feralit đỏ vàng, đất mùn, đất vườn, đất cát pha thoát nước tốt; mọc dưới tán rừng."
+  },
+  {
+    "id": 12,
+    "name": "Rau dớn",
+    "local": "Nha cơ tông",
+    "scientific": "Diplazium esculentum (Retz.) Sw.",
+    "family": "Athyriaceae",
+    "part": "Ngọn non",
+    "habitat": "Vùng ẩm, khe suối, rừng ẩm, ven sông, thung lũng; ưa bóng râm hoặc nắng nhẹ."
+  },
+  {
+    "id": 13,
+    "name": "Lân hoa gié (lá lốt rừng)",
+    "local": "Biap toh rhoa",
+    "scientific": "Lepianthes umbellatum (L.) Raf.",
+    "family": "Piperaceae",
+    "part": "Lá non, thân",
+    "habitat": "Rừng lá rộng ẩm, dưới tán cây lớn, bờ suối, khe núi; ưa ẩm và ưa bóng."
+  },
+  {
+    "id": 14,
+    "name": "Cây bột ngọt",
+    "local": "R’nhàu",
+    "scientific": "Sterculia sp.",
+    "family": "Sterculiaceae",
+    "part": "Lá",
+    "habitat": "Rừng ẩm, rừng thứ sinh hoặc vườn nhà dưới tán cây; tài liệu cũng ghi nhận môi trường tự nhiên ẩm và ưa bóng."
+  },
+  {
+    "id": 15,
+    "name": "Chân danh",
+    "local": "Nha tiép ma, Biap scôt",
+    "scientific": "Euonymus forbesiana Loesn.",
+    "family": "Celastraceae",
+    "part": "Lá non",
+    "habitat": "Ven suối, dưới rừng thưa, đất ẩm; đồi núi thấp hoặc nơi có độ ẩm cao và bóng râm."
+  },
+  {
+    "id": 16,
+    "name": "Sơn địch",
+    "local": "Jùn ber, N’rong ta",
+    "scientific": "Aristolochia tagala Chamiss",
+    "family": "Aristolochiaceae",
+    "part": "Lá non",
+    "habitat": "Rừng thưa, ven suối, đất ẩm có bóng râm; thường gặp ở đồi núi, nơi đất tươi tốt."
+  },
+  {
+    "id": 17,
+    "name": "Gừng rừng",
+    "local": "Tra Vrê",
+    "scientific": "Zingiber densissimum",
+    "family": "Zingiberaceae",
+    "part": "Ngọn non",
+    "habitat": "Rừng thưa, đồi núi, ven suối, đất ẩm và có bóng râm; đất tơi xốp, dễ thoát nước."
+  }
+];
+
+const map = L.map('map', { attributionControl:false }).setView([12.02, 108.48], 10);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+}).addTo(map);
+
+
+
+const studyAreas = [
+  {
+    id:'bidoup',
+    name:'Cụm ghi nhận · quanh Thác Thiên Thai',
+    short:'Thiên Thai',
+    kind:'Khu vực ghi nhận rải rác',
+    coords:[[12.129,108.510],[12.139,108.514],[12.149,108.521],[12.155,108.531],[12.153,108.542],[12.146,108.550],[12.136,108.548],[12.128,108.540],[12.123,108.529],[12.125,108.518]],
+    desc:'Cụm ghi nhận tập trung quanh tuyến Thác Thiên Thai.'
+  },
+  {
+    id:'bidoup2',
+    name:'Mảng ghi nhận nhỏ · phía bắc tuyến Thiên Thai',
+    short:'Mảng Thiên Thai 2',
+    kind:'Khu vực ghi nhận rải rác',
+    coords:[
+      [12.157,108.533],[12.161,108.538],[12.159,108.545],
+      [12.153,108.548],[12.149,108.543],[12.150,108.536]
+    ],
+    desc:'Mảng nhỏ nằm lệch về phía bắc, tách khỏi cụm chính.'
+  },
+  {
+    id:'bidoup3',
+    name:'Cụm ghi nhận thưa · phía nam tuyến Thiên Thai',
+    short:'Mảng Thiên Thai 3',
+    kind:'Khu vực ghi nhận rải rác',
+    coords:[
+      [12.124,108.523],[12.129,108.528],[12.130,108.535],
+      [12.125,108.542],[12.119,108.539],[12.117,108.532],[12.120,108.526]
+    ],
+    desc:'Cụm nhỏ nằm lệch về phía nam, giữa các khoảng rừng không ghi nhận.'
+  },
+  {
+    id:'forestA',
+    name:'Cụm ghi nhận · sườn rừng phía bắc',
+    short:'Cụm rừng A',
+    kind:'Khu vực ghi nhận rải rác',
+    coords:[
+      [12.171,108.575],[12.177,108.579],[12.180,108.586],[12.176,108.592],
+      [12.169,108.590],[12.166,108.583],[12.168,108.578]
+    ],
+    desc:'Cụm nhỏ nằm lệch khỏi hành lang giao thông, trên khu vực rừng phía bắc.'
+  },
+  {
+    id:'forestB',
+    name:'Cụm ghi nhận · sườn rừng phía nam',
+    short:'Cụm rừng B',
+    kind:'Khu vực ghi nhận rải rác',
+    coords:[
+      [12.130,108.571],[12.135,108.575],[12.137,108.582],
+      [12.132,108.588],[12.125,108.585],[12.123,108.578]
+    ],
+    desc:'Cụm nhỏ nằm trong phần rừng lệch về phía nam, không đặt trên tuyến đường.'
+  },
+  {
+    id:'forestC',
+    name:'Cụm ghi nhận biệt lập · vùng rừng ẩm',
+    short:'Cụm rừng C',
+    kind:'Khu vực ghi nhận rải rác',
+    coords:[
+      [12.187,108.614],[12.193,108.618],[12.196,108.625],
+      [12.191,108.631],[12.184,108.628],[12.182,108.621]
+    ],
+    desc:'Cụm biệt lập trong vùng rừng, cách xa hành lang đường.'
+  },
+  {
+    id:'forestD',
+    name:'Cụm ghi nhận nhỏ · sườn núi',
+    short:'Cụm rừng D',
+    kind:'Khu vực ghi nhận rải rác',
+    coords:[
+      [12.151,108.646],[12.157,108.650],[12.159,108.657],
+      [12.155,108.663],[12.148,108.660],[12.146,108.653]
+    ],
+    desc:'Mảng nhỏ nằm lệch sang sườn núi, giữa các khoảng không ghi nhận.'
+  },
+  {
+    id:'forestE',
+    name:'Cụm ghi nhận nhỏ · vùng rừng trước Hòn Giao',
+    short:'Cụm rừng E',
+    kind:'Khu vực ghi nhận rải rác',
+    coords:[
+      [12.208,108.681],[12.214,108.685],[12.216,108.692],
+      [12.211,108.697],[12.205,108.693],[12.203,108.687]
+    ],
+    desc:'Cụm nhỏ nằm trong phần rừng lệch khỏi tuyến, trước khu vực Hòn Giao.'
+  },
+  {
+    id:'hongiao',
+    name:'Cụm ghi nhận nhỏ · khu vực Hòn Giao',
+    short:'Cụm Hòn Giao',
+    kind:'Khu vực ghi nhận rải rác',
+    coords:[[12.194,108.700],[12.202,108.704],[12.212,108.709],[12.220,108.716],[12.224,108.726],[12.221,108.735],[12.214,108.741],[12.205,108.737],[12.198,108.730],[12.192,108.721],[12.190,108.711]],
+    desc:'Một cụm ghi nhận nhỏ trong khu vực núi Hòn Giao, không đại diện cho toàn bộ vùng núi.'
+  }
+];
+
+const areaStyle = {
+  color:'#47745a',
+  weight:1.15,
+  opacity:0.78,
+  fillColor:'#739b7d',
+  fillOpacity:0.10,
+  dashArray:'5 6',
+  lineCap:'round',
+  lineJoin:'round'
+};
+
+function smoothCoords(coords, tension=0.18, steps=10){
+  // Nội suy Catmull-Rom để đường khoanh thành một dải cong mềm,
+  // không còn các cạnh thẳng kiểu đa giác.
+  const out=[];
+  const n=coords.length;
+  for(let i=0;i<n;i++){
+    const p0=coords[(i-1+n)%n], p1=coords[i], p2=coords[(i+1)%n], p3=coords[(i+2)%n];
+    for(let j=0;j<steps;j++){
+      const t=j/steps, t2=t*t, t3=t2*t;
+      const lat=0.5*((2*p1[0])+(-p0[0]+p2[0])*t+(2*p0[0]-5*p1[0]+4*p2[0]-p3[0])*t2+(-p0[0]+3*p1[0]-3*p2[0]+p3[0])*t3);
+      const lng=0.5*((2*p1[1])+(-p0[1]+p2[1])*t+(2*p0[1]-5*p1[1]+4*p2[1]-p3[1])*t2+(-p0[1]+3*p1[1]-3*p2[1]+p3[1])*t3);
+      out.push([lat,lng]);
+    }
+  }
+  return out;
+}
+
+const areaLayers=[];
+studyAreas.forEach(a=>{
+  const layer=L.polygon(smoothCoords(a.coords), {...areaStyle, smoothFactor:1.2});
+  layer.bindTooltip(a.short,{sticky:true});
+  layer.bindPopup(`<div class="popup"><h3>${a.name}</h3>
+      <div class="latin">${a.kind}</div>
+      <p>${a.desc}</p>
+    </div>`);
+  layer.addTo(map);
+  areaLayers.push(layer);
+});
+
+const allBounds = L.featureGroup(studyAreas.map(a=>L.polygon(a.coords))).getBounds();
+map.fitBounds(allBounds.pad(0.10));
+
+const familySelect=document.getElementById('family');
+const partSelect=document.getElementById('part');
+[...new Set(species.map(x=>x.family))].sort().forEach(x=>familySelect.add(new Option(x,x)));
+[...new Set(species.map(x=>x.part))].sort().forEach(x=>partSelect.add(new Option(x,x)));
+
+function popup(x){
+ return `<div class="popup">
+ <h3>${x.name}</h3><div class="local">${x.local}</div>
+ <div class="latin">${x.scientific}</div>
+ <p><b>Họ:</b> ${x.family}<br><b>Bộ phận sử dụng:</b> ${x.part}</p>
+ <p><b>Sinh cảnh theo tri thức bản địa:</b><br>${x.habitat}</p>
+ </div>`;
+}
+
+function render(){
+ const q=document.getElementById('search').value.toLowerCase().trim();
+ const fam=familySelect.value, part=partSelect.value;
+ const filtered=species.filter(x =>
+   (!q || [x.name,x.local,x.scientific,x.family,x.habitat].join(' ').toLowerCase().includes(q)) &&
+   (!fam || x.family===fam) && (!part || x.part===part)
+ );
+ document.getElementById('count').textContent=filtered.length;
+ document.getElementById('list').innerHTML=filtered.map(x=>`
+   <article class="card" onclick="showSpecies(${x.id})">
+     <h3>${String(x.id).padStart(2,'0')} · ${x.name}</h3>
+     <div class="local">${x.local}</div>
+     <div class="sci">${x.scientific}</div>
+     <div class="meta"><span class="tag">${x.family}</span><span class="tag">${x.part}</span></div>
+   </article>`).join('') || '<p style="color:#6c756e">Không tìm thấy loài phù hợp.</p>';
+}
+
+function showSpecies(id){
+ const x=species.find(s=>s.id===id);
+ // Không tạo điểm phân bố giả. Hiển thị hồ sơ loài và đưa bản đồ về toàn bộ
+ // các khu vực thực địa đã khoanh.
+ map.fitBounds(allBounds.pad(0.10));
+ L.popup()
+   .setLatLng([12.08,108.50])
+   .setContent(popup(x))
+   .openOn(map);
+}
+document.getElementById('search').addEventListener('input',render);
+familySelect.addEventListener('change',render);
+partSelect.addEventListener('change',render);
+render();
+</script>
+</body>
+</html>
